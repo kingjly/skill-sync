@@ -40,6 +40,40 @@ export interface SyncStatus {
   error?: string;
 }
 
+export interface SyncResult {
+  toolId: string;
+  skillId: string;
+  success: boolean;
+  method: 'symlink' | 'copy';
+  error?: string;
+}
+
+export interface MergePreview {
+  skillName: string;
+  sourceTool: string;
+  targetPath: string;
+  files: MergeFile[];
+  conflicts: ConflictInfo[];
+  hasConflicts: boolean;
+}
+
+export interface MergeFile {
+  name: string;
+  sourcePath: string;
+  targetPath: string;
+  action: 'create' | 'skip' | 'overwrite';
+  exists: boolean;
+  sourceHash: string;
+  targetHash?: string;
+}
+
+export interface ConflictInfo {
+  fileName: string;
+  sourceHash: string;
+  targetHash: string;
+  autoResolvable: boolean;
+}
+
 export interface AppConfig {
   skillRepoPath: string;
   tools: Tool[];
@@ -114,5 +148,22 @@ export const api = {
 
   sync: {
     status: () => fetchApi<SyncStatus[]>('/sync/status'),
+    statusByTool: (toolId: string) => fetchApi<SyncStatus[]>(`/sync/status/${toolId}`),
+    syncSkillToTool: (skillId: string, toolId: string) =>
+      fetchApi<SyncResult>(`/sync/skill/${skillId}/tool/${toolId}`, { method: 'POST' }),
+    syncSkillToAll: (skillId: string) =>
+      fetchApi<SyncResult[]>(`/sync/skill/${skillId}/all`, { method: 'POST' }),
+    syncAllToTool: (toolId: string) =>
+      fetchApi<SyncResult[]>(`/sync/tool/${toolId}/all`, { method: 'POST' }),
+    syncAll: () => fetchApi<SyncResult[]>('/sync/all', { method: 'POST' }),
+  },
+
+  merge: {
+    preview: (toolId: string) => fetchApi<MergePreview[]>(`/merge/preview/${toolId}`),
+    execute: (toolId: string, skillName: string, overwrite: boolean = false) =>
+      fetchApi<void>('/merge/execute', {
+        method: 'POST',
+        body: JSON.stringify({ toolId, skillName, overwrite }),
+      }),
   },
 };

@@ -3,6 +3,7 @@ import type { ApiResponse, Tool, Skill, SyncStatus, AppConfig } from '../types/i
 import { toolDetector } from '../services/detector.js';
 import { skillRepo } from '../services/skill-repo.js';
 import { configService } from '../services/config.js';
+import { syncService, type SyncResult, type MergePreview } from '../services/sync.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/health', async () => {
@@ -159,8 +160,132 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/sync/status', async (): Promise<ApiResponse<SyncStatus[]>> => {
     try {
-      const status: SyncStatus[] = [];
+      const tools = toolDetector.detectAll();
+      const detectedTools = tools.filter((t) => t.detected);
+      const allStatus: SyncStatus[] = [];
+
+      for (const tool of detectedTools) {
+        const status = syncService.getSyncStatus(tool.id);
+        allStatus.push(...status);
+      }
+
+      return { success: true, data: allStatus };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.get('/api/sync/status/:toolId', async (request): Promise<ApiResponse<SyncStatus[]>> => {
+    try {
+      const { toolId } = request.params as { toolId: string };
+      const status = syncService.getSyncStatus(toolId);
       return { success: true, data: status };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.post('/api/sync/skill/:skillId/tool/:toolId', async (request): Promise<ApiResponse<SyncResult>> => {
+    try {
+      const { skillId, toolId } = request.params as { skillId: string; toolId: string };
+      const result = syncService.syncSkillToTool(skillId, toolId);
+
+      if (result.success) {
+        return { success: true, data: result, message: `Skill "${skillId}" synced to "${toolId}"` };
+      }
+      return { success: false, error: result.error };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.post('/api/sync/skill/:skillId/all', async (request): Promise<ApiResponse<SyncResult[]>> => {
+    try {
+      const { skillId } = request.params as { skillId: string };
+      const results = syncService.syncSkillToAllTools(skillId);
+      const failed = results.filter((r) => !r.success);
+
+      if (failed.length === 0) {
+        return { success: true, data: results, message: `Skill "${skillId}" synced to all tools` };
+      }
+      return {
+        success: false,
+        data: results,
+        error: `${failed.length} sync(s) failed`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.post('/api/sync/tool/:toolId/all', async (request): Promise<ApiResponse<SyncResult[]>> => {
+    try {
+      const { toolId } = request.params as { toolId: string };
+      const results = syncService.syncAllSkillsToTool(toolId);
+      const failed = results.filter((r) => !r.success);
+
+      if (failed.length === 0) {
+        return { success: true, data: results, message: `All skills synced to "${toolId}"` };
+      }
+      return {
+        success: false,
+        data: results,
+        error: `${failed.length} sync(s) failed`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.post('/api/sync/all', async (): Promise<ApiResponse<SyncResult[]>> => {
+    try {
+      const results = syncService.syncAll();
+      const failed = results.filter((r) => !r.success);
+
+      if (failed.length === 0) {
+        return { success: true, data: results, message: 'All skills synced to all tools' };
+      }
+      return {
+        success: false,
+        data: results,
+        error: `${failed.length} sync(s) failed`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.get('/api/merge/preview/:toolId', async (request): Promise<ApiResponse<MergePreview[]>> => {
+    try {
+      const { toolId } = request.params as { toolId: string };
+      const previews = syncService.previewMerge(toolId);
+      return { success: true, data: previews };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
+  app.post('/api/merge/execute', async (request): Promise<ApiResponse> => {
+    try {
+      const { toolId, skillName, overwrite } = request.body as {
+        toolId: string;
+        skillName: string;
+        overwrite?: boolean;
+      };
+
+      const result = syncService.executeMerge(toolId, skillName, overwrite);
+
+      if (result.success) {
+        return { success: true, message: `Skill "${skillName}" merged successfully` };
+      }
+      return { success: false, error: result.error };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return { success: false, error: message };
