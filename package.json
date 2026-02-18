@@ -1,0 +1,40 @@
+{
+  "name": "skill-sync",
+  "version": "1.0.0",
+  "description": "A unified skill manager for AI coding assistants",
+  "private": true,
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:web": "npm run dev --workspace=web",
+    "start": "concurrently \"npm run start:server\" \"npm run start:web\"",
+    "start:server": "npm run start --workspace=server",
+    "start:web": "npm run start --workspace=web",
+    "build": "npm run build --workspace=server && npm run build --workspace=web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "quality": "powershell -ExecutionPolicy Bypass -File ./scripts/quality-check.ps1",
+    "quality:fix": "powershell -ExecutionPolicy Bypass -File ./scripts/quality-check.ps1 -Fix",
+    "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=web"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
