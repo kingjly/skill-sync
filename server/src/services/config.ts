@@ -17,7 +17,7 @@ export class ConfigService {
   private config: AppConfig;
 
   constructor() {
-    const configDir = path.join(os.homedir(), '.skill-sync');
+    const configDir = process.env.SKILL_SYNC_CONFIG_DIR || path.join(os.homedir(), '.skill-sync');
     this.configPath = path.join(configDir, 'config.json');
     this.config = this.loadConfig();
   }
@@ -54,6 +54,9 @@ export class ConfigService {
   }
 
   getSkillRepoPath(): string {
+    if (process.env.SKILL_SYNC_REPO_PATH) {
+      return process.env.SKILL_SYNC_REPO_PATH;
+    }
     if (this.config.skillRepoPath) {
       return this.config.skillRepoPath;
     }
