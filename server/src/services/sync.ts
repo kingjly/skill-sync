@@ -41,7 +41,154 @@ export interface ConflictInfo {
   autoResolvable: boolean;
 }
 
+export interface ImportedSkill {
+  name: string;
+  toolId: string;
+  toolName: string;
+  skillPath: string;
+  fileCount: number;
+  size: number;
+  description?: string;
+}
+
 class SyncService {
+  listToolsSkills(): ImportedSkill[] {
+    const tools = toolDetector.detectAll();
+    const installedTools = tools.filter((t) => t.installed);
+    const importedSkills: ImportedSkill[] = [];
+
+    for (const tool of installedTools) {
+      const toolSkillPath = toolDetector.getToolSkillPath(tool.id);
+      if (!toolSkillPath || !fs.existsSync(toolSkillPath)) {
+        continue;
+      }
+
+      try {
+        const entries = fs.readdirSync(toolSkillPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+
+          const skillDir = path.join(toolSkillPath, entry.name);
+          const stats = this.getDirStats(skillDir);
+          const description = this.getSkillDescription(skillDir);
+
+          importedSkills.push({
+            name: entry.name,
+            toolId: tool.id,
+            toolName: tool.displayName,
+            skillPath: skillDir,
+            fileCount: stats.fileCount,
+            size: stats.size,
+            description,
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to scan tool ${tool.id}:`, error);
+      }
+    }
+
+    return importedSkills;
+  }
+
+  private getDirStats(dir: string): { fileCount: number; size: number } {
+    let fileCount = 0;
+    let size = 0;
+
+    const scan = (dir: string) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          scan(fullPath);
+        } else if (entry.isFile()) {
+          fileCount++;
+          size += fs.statSync(fullPath).size;
+        }
+      }
+    };
+
+    try {
+      scan(dir);
+    } catch {
+      // ignore errors
+    }
+
+    return { fileCount, size };
+  }
+
+  private getSkillDescription(skillDir: string): string | undefined {
+    const skillMdPath = path.join(skillDir, 'SKILL.md');
+    if (!fs.existsSync(skillMdPath)) return undefined;
+
+    try {
+      const content = fs.readFileSync(skillMdPath, 'utf-8');
+      const match = content.match(/(?:^|\n)#\s+(.+?)(?:\n|$)/);
+      return match?.[1]?.trim();
+    } catch {
+      return undefined;
+    }
+  }
+
+  importFromTool(toolId: string, skillName: string, overwrite: boolean = false): { success: boolean; error?: string; imported?: boolean } {
+    const toolSkillPath = toolDetector.getToolSkillPath(toolId);
+    if (!toolSkillPath) {
+      return { success: false, error: `Tool "${toolId}" not supported` };
+    }
+
+    const sourcePath = path.join(toolSkillPath, skillName);
+    if (!fs.existsSync(sourcePath)) {
+      return { success: false, error: `Skill "${skillName}" not found in tool directory` };
+    }
+
+    const targetPath = path.join(configService.getSkillRepoPath(), skillName);
+
+    if (fs.existsSync(targetPath) && !overwrite) {
+      return { success: false, error: `Skill "${skillName}" already exists. Use overwrite=true to replace.` };
+    }
+
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      }
+
+      this.copyDir(sourcePath, targetPath);
+
+      return { success: true, imported: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  }
+
+  importAllFromTool(toolId: string, overwrite: boolean = false): { success: boolean; error?: string; imported: number; failed: number } {
+    const toolSkillPath = toolDetector.getToolSkillPath(toolId);
+    if (!toolSkillPath || !fs.existsSync(toolSkillPath)) {
+      return { success: false, error: `Tool "${toolId}" not found or skills directory doesn't exist`, imported: 0, failed: 0 };
+    }
+
+    let imported = 0;
+    let failed = 0;
+
+    try {
+      const entries = fs.readdirSync(toolSkillPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const result = this.importFromTool(toolId, entry.name, overwrite);
+        if (result.success && result.imported) {
+          imported++;
+        } else {
+          failed++;
+        }
+      }
+
+      return { success: failed === 0, imported, failed };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message, imported, failed };
+    }
+  }
+
   syncSkillToTool(skillId: string, toolId: string): SyncResult {
     const skill = skillRepo.get(skillId);
     if (!skill) {
@@ -203,34 +350,7 @@ class SyncService {
   }
 
   executeMerge(toolId: string, skillName: string, overwrite: boolean = false): { success: boolean; error?: string } {
-    const toolSkillPath = toolDetector.getToolSkillPath(toolId);
-    if (!toolSkillPath) {
-      return { success: false, error: `Tool "${toolId}" not supported` };
-    }
-
-    const sourcePath = path.join(toolSkillPath, skillName);
-    if (!fs.existsSync(sourcePath)) {
-      return { success: false, error: `Skill "${skillName}" not found in tool directory` };
-    }
-
-    const targetPath = path.join(configService.getSkillRepoPath(), skillName);
-
-    if (fs.existsSync(targetPath) && !overwrite) {
-      return { success: false, error: `Skill "${skillName}" already exists. Use overwrite=true to replace.` };
-    }
-
-    try {
-      if (fs.existsSync(targetPath)) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
-      }
-
-      this.copyDir(sourcePath, targetPath);
-
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: message };
-    }
+    return this.importFromTool(toolId, skillName, overwrite);
   }
 
   private analyzeMergeFiles(sourceDir: string, targetDir: string): MergeFile[] {

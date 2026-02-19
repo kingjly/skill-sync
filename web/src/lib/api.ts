@@ -82,6 +82,23 @@ export interface AppConfig {
   theme: 'light' | 'dark' | 'system';
 }
 
+export interface ImportedSkill {
+  name: string;
+  toolId: string;
+  toolName: string;
+  skillPath: string;
+  fileCount: number;
+  size: number;
+  description?: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  failed: number;
+  success: boolean;
+  error?: string;
+}
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
@@ -164,6 +181,20 @@ export const api = {
       fetchApi<void>('/merge/execute', {
         method: 'POST',
         body: JSON.stringify({ toolId, skillName, overwrite }),
+      }),
+  },
+
+  import: {
+    listToolsSkills: () => fetchApi<ImportedSkill[]>('/import/tools-skills'),
+    importSkill: (toolId: string, skillName: string, overwrite: boolean = false) =>
+      fetchApi<void>(`/import/tool/${toolId}/skill/${encodeURIComponent(skillName)}`, {
+        method: 'POST',
+        body: JSON.stringify({ overwrite }),
+      }),
+    importAllFromTool: (toolId: string, overwrite: boolean = false) =>
+      fetchApi<ImportResult>(`/import/tool/${toolId}/all`, {
+        method: 'POST',
+        body: JSON.stringify({ overwrite }),
       }),
   },
 };

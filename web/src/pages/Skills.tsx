@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, FileText, FolderOpen, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, FileText, FolderOpen, ChevronRight, Download, Upload } from 'lucide-react';
 import { api } from '../lib/api';
-import type { Skill } from '../lib/api';
+import type { Skill, ImportedSkill } from '../lib/api';
 
 export default function Skills() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newSkillName, setNewSkillName] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importingSkill, setImportingSkill] = useState<string | null>(null);
 
   const { data: skillsResponse, isLoading } = useQuery({
     queryKey: ['skills'],
     queryFn: api.skills.list,
+  });
+
+  const { data: importedSkillsResponse, isLoading: isLoadingImported } = useQuery({
+    queryKey: ['imported-skills'],
+    queryFn: api.import.listToolsSkills,
+    enabled: showImport,
   });
 
   const createMutation = useMutation({
@@ -32,12 +40,33 @@ export default function Skills() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: ({ toolId, skillName }: { toolId: string; skillName: string }) =>
+      api.import.importSkill(toolId, skillName),
+    onSuccess: (_, { skillName }) => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+      queryClient.invalidateQueries({ queryKey: ['imported-skills'] });
+      setImportingSkill(null);
+      alert(`Successfully imported "${skillName}"`);
+    },
+    onError: (error: Error) => {
+      alert(`Import failed: ${error.message}`);
+      setImportingSkill(null);
+    },
+  });
+
   const skills = skillsResponse?.data || [];
+  const importedSkills = importedSkillsResponse?.data || [];
 
   const handleCreate = () => {
     if (newSkillName.trim()) {
       createMutation.mutate(newSkillName.trim());
     }
+  };
+
+  const handleImport = (skill: ImportedSkill) => {
+    setImportingSkill(skill.name);
+    importMutation.mutate({ toolId: skill.toolId, skillName: skill.name });
   };
 
   if (isLoading) {
@@ -57,14 +86,85 @@ export default function Skills() {
             Manage your AI coding assistant skills
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn btn-primary btn-md flex items-center gap-2"
-        >
-          <Plus size={18} />
-          New Skill
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="btn btn-secondary btn-md flex items-center gap-2"
+          >
+            <Download size={18} />
+            Import
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="btn btn-primary btn-md flex items-center gap-2"
+          >
+            <Plus size={18} />
+            New Skill
+          </button>
+        </div>
       </div>
+
+      {showImport && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Import Skills from Tools</h3>
+            <button onClick={() => setShowImport(false)} className="btn btn-ghost btn-sm">
+              ✕
+            </button>
+          </div>
+          
+          {isLoadingImported ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[hsl(var(--primary))] mx-auto" />
+            </div>
+          ) : importedSkills.length === 0 ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              No skills found in your installed tools.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {importedSkills.map((skill) => (
+                <div
+                  key={`${skill.toolId}-${skill.name}`}
+                  className="flex items-center justify-between p-3 rounded bg-[hsl(var(--muted))]"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{skill.name}</span>
+                      <span className="badge badge-secondary">{skill.toolName}</span>
+                    </div>
+                    {skill.description && (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                        {skill.description}
+                      </p>
+                    )}
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {skill.fileCount} files, {(skill.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleImport(skill)}
+                    disabled={importingSkill === skill.name}
+                    className="btn btn-primary btn-sm flex items-center gap-1"
+                  >
+                    {importingSkill === skill.name ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        Import
+                      </>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showCreate && (
         <div className="card p-4">
@@ -108,7 +208,7 @@ export default function Skills() {
               {skills.length === 0 ? (
                 <div className="p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
                   <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  No skills yet. Create your first skill!
+                  No skills yet. Create or import one!
                 </div>
               ) : (
                 skills.map((skill) => (
