@@ -1,119 +1,146 @@
 # Skill Sync
 
-一个用于管理和同步 AI 编程工具 Skills 的 Web 应用。支持将中央仓库的 Skills 同步到多个 AI 编程助手工具。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
+[![Fastify](https://img.shields.io/badge/Fastify-4.x-000000.svg)](https://fastify.io/)
 
-## 支持的工具
+**[中文文档](./README_CN.md)**
 
-| 工具 | 类型 | 状态 |
-|------|------|------|
-| Claude Code | CLI | ✅ |
-| Cursor | IDE | ✅ |
-| Windsurf | IDE | ✅ |
-| Trae | IDE | ✅ |
-| Kiro | IDE | ✅ |
-| Gemini CLI | CLI | ✅ |
-| GitHub Copilot | IDE/CLI | ✅ |
-| OpenAI Codex | CLI | ✅ |
-| Cline | VS Code Extension | ✅ |
+A modern web application for managing and synchronizing AI coding assistant skills across multiple tools. Centralize your skills repository and sync them to Claude Code, Cursor, Windsurf, Trae, and more.
 
-## 功能特性
+## ✨ Features
 
-- **中央仓库管理**: 统一管理所有 Skills
-- **多工具同步**: 一键将 Skills 同步到多个 AI 编程工具
-- **符号链接支持**: 使用 symlink 方式同步，节省磁盘空间
-- **Skill 预览**: 支持 Markdown 渲染预览，自动解析 SKILL.md 元信息
-- **工具检测**: 自动检测已安装的 AI 编程工具
-- **批量操作**: 支持批量导入、同步、删除
+- 🗂️ **Central Repository** - Manage all your AI coding skills in one place
+- 🔄 **Multi-Tool Sync** - One-click sync to multiple AI coding assistants
+- 🔗 **Symlink Support** - Efficient synchronization using symbolic links
+- 👁️ **Skill Preview** - Markdown rendering with YAML frontmatter parsing
+- 🔍 **Auto Detection** - Automatically detect installed AI coding tools
+- 📦 **Batch Operations** - Import, sync, and delete skills in bulk
+- 🎨 **Modern UI** - Clean, responsive interface with dark mode support
 
-## 技术栈
+## 🛠️ Supported Tools
 
-- **前端**: React 18 + TypeScript + Vite + Tailwind CSS + TanStack Query
-- **后端**: Fastify + TypeScript
-- **渲染**: react-markdown + remark-gfm + @tailwindcss/typography
+| Tool | Type | Status |
+|------|------|:------:|
+| [Claude Code](https://claude.ai/code) | CLI | ✅ |
+| [Cursor](https://cursor.sh) | IDE | ✅ |
+| [Windsurf](https://codeium.com/windsurf) | IDE | ✅ |
+| [Trae](https://trae.ai) | IDE | ✅ |
+| [Kiro](https://kiro.dev) | IDE | ✅ |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | CLI | ✅ |
+| [GitHub Copilot](https://github.com/features/copilot) | IDE/CLI | ✅ |
+| [OpenAI Codex](https://github.com/openai/codex) | CLI | ✅ |
+| [Cline](https://github.com/cline/cline) | VS Code Extension | ✅ |
 
-## 快速开始
+## 🚀 Quick Start
 
-### 安装依赖
+### Prerequisites
+
+- Node.js 18+
+- npm or pnpm
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-username/skill-sync.git
+cd skill-sync
+
+# Install dependencies
 npm install
 ```
 
-### 启动开发服务器
+### Development
 
 ```bash
-# 启动后端 (端口 3001)
+# Start the backend server (port 3001)
 npx tsx server/src/index.ts
 
-# 启动前端 (端口 3000)
+# In another terminal, start the frontend (port 3000)
 cd web && npm run dev
 ```
 
-### 构建生产版本
+Visit `http://localhost:3000` to access the application.
+
+### Production Build
 
 ```bash
 npm run build
 ```
 
-## 项目结构
+## 📁 Project Structure
 
 ```
 skill-sync/
-├── server/                 # 后端服务
+├── server/                 # Backend service (Fastify)
 │   └── src/
-│       ├── routes/         # API 路由
-│       ├── services/       # 业务逻辑
-│       └── types/          # 类型定义
-├── web/                    # 前端应用
+│       ├── routes/         # API endpoints
+│       ├── services/       # Business logic
+│       └── types/          # TypeScript definitions
+├── web/                    # Frontend application (React + Vite)
 │   └── src/
-│       ├── components/     # 公共组件
-│       ├── pages/          # 页面组件
-│       ├── lib/            # 工具库
-│       └── store/          # 状态管理
-└── icons/                  # 工具图标
+│       ├── components/     # Reusable components
+│       ├── pages/          # Page components
+│       ├── lib/            # Utilities
+│       └── store/          # State management
+└── icons/                  # Tool icons
 ```
 
-## API 接口
+## 📡 API Reference
 
 ### Skills
 
-- `GET /api/skills` - 获取所有 Skills 列表
-- `GET /api/skills/:id` - 获取单个 Skill 详情
-- `GET /api/skills/:id/preview` - 获取 Skill 文件内容（用于预览）
-- `POST /api/skills/import` - 导入 Skills 到中央仓库
-- `POST /api/skills/delete` - 删除 Skills
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/skills` | List all skills |
+| GET | `/api/skills/:id` | Get skill details |
+| GET | `/api/skills/:id/preview` | Preview skill files |
+| POST | `/api/skills/import` | Import skills to repository |
+| POST | `/api/skills/delete` | Delete skills |
 
 ### Tools
 
-- `GET /api/tools` - 获取所有工具列表
-- `GET /api/tools/:id/skills` - 获取工具的 Skills 列表
-- `POST /api/tools/:id/sync` - 同步 Skills 到工具
-- `POST /api/tools/:id/delete-skills` - 删除工具中的 Skills
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tools` | List all supported tools |
+| GET | `/api/tools/:id/skills` | Get tool's skills |
+| POST | `/api/tools/:id/sync` | Sync skills to tool |
+| POST | `/api/tools/:id/delete-skills` | Delete skills from tool |
 
-### Config
+### Configuration
 
-- `GET /api/config` - 获取配置
-- `PUT /api/config` - 更新配置
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/config` | Get current config |
+| PUT | `/api/config` | Update config |
 
-## Skill 规范
+## 📝 Skill Format
 
-每个 Skill 包应该包含 `SKILL.md` 文件，格式如下：
+Each skill package should contain a `SKILL.md` file with YAML frontmatter:
 
 ```markdown
 ---
 name: Skill Name
-description: Skill description
+description: A brief description of what this skill does
 ---
 
-# Skill Content
+# Skill Name
 
-...
+Detailed skill content here...
 ```
 
-## 图标来源
+## 🎨 Tech Stack
 
-工具图标来自 [lobe-icons](https://github.com/lobehub/lobe-icons) 项目。
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, TanStack Query
+- **Backend**: Fastify, TypeScript
+- **Rendering**: react-markdown, remark-gfm, @tailwindcss/typography
 
-## License
+## 🙏 Acknowledgments
 
-MIT
+- Tool icons from [lobe-icons](https://github.com/lobehub/lobe-icons)
+- Kiro icon from [Awesome-IDEs](https://github.com/zeelsheladiya/Awesome-IDEs)
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
