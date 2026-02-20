@@ -119,6 +119,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.get('/api/skills/:id/preview', async (request): Promise<ApiResponse> => {
+    try {
+      const { id } = request.params as { id: string };
+      const skill = skillRepo.get(id);
+      
+      if (!skill) {
+        return { success: false, error: `Skill "${id}" not found` };
+      }
+
+      const files = skill.files.map(file => ({
+        path: file.path,
+        content: skillRepo.getFileContent(id, file.path) || '',
+        size: file.size,
+      }));
+
+      return { success: true, data: files };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
   app.put('/api/skills/:id/files/:path', async (request): Promise<ApiResponse> => {
     try {
       const { id, path: filePath } = request.params as { id: string; path: string };
@@ -302,11 +324,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.get('/api/import/preview/:toolId/skill/:skillName', async (request): Promise<ApiResponse> => {
+    try {
+      const { toolId, skillName } = request.params as { toolId: string; skillName: string };
+      const files = syncService.previewSkillFiles(toolId, decodeURIComponent(skillName));
+      return { success: true, data: files };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
   app.post('/api/import/tool/:toolId/skill/:skillName', async (request): Promise<ApiResponse> => {
     try {
       const { toolId, skillName } = request.params as { toolId: string; skillName: string };
-      const { overwrite } = request.body as { overwrite?: boolean };
-      const result = syncService.importFromTool(toolId, decodeURIComponent(skillName), overwrite);
+      const { overwrite, symlink } = request.body as { overwrite?: boolean; symlink?: boolean };
+      const result = syncService.importFromTool(toolId, decodeURIComponent(skillName), overwrite, symlink);
 
       if (result.success) {
         return { success: true, message: `Skill "${skillName}" imported successfully` };
@@ -318,11 +351,26 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.post('/api/import/restore/:toolId/skill/:skillName', async (request): Promise<ApiResponse> => {
+    try {
+      const { toolId, skillName } = request.params as { toolId: string; skillName: string };
+      const result = syncService.restoreFromSymlink(toolId, decodeURIComponent(skillName));
+
+      if (result.success) {
+        return { success: true, message: `Skill "${skillName}" restored from symlink` };
+      }
+      return { success: false, error: result.error };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
+
   app.post('/api/import/tool/:toolId/all', async (request): Promise<ApiResponse> => {
     try {
       const { toolId } = request.params as { toolId: string };
-      const { overwrite } = request.body as { overwrite?: boolean };
-      const result = syncService.importAllFromTool(toolId, overwrite);
+      const body = request.body as { overwrite?: boolean; symlink?: boolean };
+      const result = syncService.importAllFromTool(toolId, body.overwrite);
 
       if (result.success) {
         return { success: true, data: result, message: `Imported ${result.imported} skills, ${result.failed} failed` };

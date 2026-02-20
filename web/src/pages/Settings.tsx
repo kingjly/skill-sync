@@ -1,11 +1,14 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, RotateCcw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { useToast } from '../components/Toast';
 import type { AppConfig } from '../lib/api';
 import { useAppStore } from '../store';
 
 export default function Settings() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const { data: configResponse, isLoading } = useQuery({
     queryKey: ['config'],
     queryFn: api.config.get,
@@ -13,6 +16,13 @@ export default function Settings() {
 
   const updateMutation = useMutation({
     mutationFn: (updates: Partial<AppConfig>) => api.config.update(updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['config'] });
+      toast.success('Settings saved successfully');
+    },
+    onError: () => {
+      toast.error('Failed to save settings');
+    },
   });
 
   const { setTheme } = useAppStore();
@@ -151,13 +161,6 @@ export default function Settings() {
             Reset
           </button>
         </div>
-
-        {updateMutation.isSuccess && (
-          <p className="text-sm text-green-600 dark:text-green-400">Settings saved successfully!</p>
-        )}
-        {updateMutation.isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">Failed to save settings.</p>
-        )}
       </div>
 
       <div className="card p-6">

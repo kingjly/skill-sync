@@ -90,6 +90,13 @@ export interface ImportedSkill {
   fileCount: number;
   size: number;
   description?: string;
+  isSymlink?: boolean;
+}
+
+export interface SkillFilePreview {
+  path: string;
+  content: string;
+  size: number;
 }
 
 export interface ImportResult {
@@ -110,13 +117,22 @@ const API_BASE = '/api';
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const method = options?.method || 'GET';
+    const isJsonMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
+    
+    const finalOptions: RequestInit = {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
-      ...options,
-    });
+    };
+    
+    if (isJsonMethod && !finalOptions.body) {
+      finalOptions.body = '{}';
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, finalOptions);
     const data = await response.json();
     return data as ApiResponse<T>;
   } catch (error) {
@@ -152,6 +168,8 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ content }),
       }),
+    preview: (skillId: string) =>
+      fetchApi<SkillFilePreview[]>(`/skills/${skillId}/preview`),
   },
 
   config: {
@@ -186,15 +204,21 @@ export const api = {
 
   import: {
     listToolsSkills: () => fetchApi<ImportedSkill[]>('/import/tools-skills'),
-    importSkill: (toolId: string, skillName: string, overwrite: boolean = false) =>
+    previewSkill: (toolId: string, skillName: string) =>
+      fetchApi<SkillFilePreview[]>(`/import/preview/${toolId}/skill/${encodeURIComponent(skillName)}`),
+    importSkill: (toolId: string, skillName: string, overwrite: boolean = false, symlink: boolean = false) =>
       fetchApi<void>(`/import/tool/${toolId}/skill/${encodeURIComponent(skillName)}`, {
         method: 'POST',
-        body: JSON.stringify({ overwrite }),
+        body: JSON.stringify({ overwrite, symlink }),
       }),
-    importAllFromTool: (toolId: string, overwrite: boolean = false) =>
+    importAllFromTool: (toolId: string, overwrite: boolean = false, symlink: boolean = false) =>
       fetchApi<ImportResult>(`/import/tool/${toolId}/all`, {
         method: 'POST',
-        body: JSON.stringify({ overwrite }),
+        body: JSON.stringify({ overwrite, symlink }),
+      }),
+    restoreFromSymlink: (toolId: string, skillName: string) =>
+      fetchApi<void>(`/import/restore/${toolId}/skill/${encodeURIComponent(skillName)}`, {
+        method: 'POST',
       }),
   },
 };

@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Wrench,
-  FileCode,
   Settings,
   Menu,
   X,
@@ -17,8 +16,7 @@ interface LayoutProps {
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/tools', label: 'Tools', icon: Wrench },
-  { path: '/skills', label: 'Skills', icon: FileCode },
+  { path: '/tools', label: 'Tools & Skills', icon: Wrench },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

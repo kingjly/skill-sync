@@ -49,6 +49,13 @@ export interface ImportedSkill {
   fileCount: number;
   size: number;
   description?: string;
+  isSymlink?: boolean;
+}
+
+export interface SkillFilePreview {
+  path: string;
+  content: string;
+  size: number;
 }
 
 class SyncService {
@@ -66,11 +73,24 @@ class SyncService {
       try {
         const entries = fs.readdirSync(toolSkillPath, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
+          if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
 
           const skillDir = path.join(toolSkillPath, entry.name);
-          const stats = this.getDirStats(skillDir);
-          const description = this.getSkillDescription(skillDir);
+          let isSymlink = false;
+          let actualPath = skillDir;
+          
+          try {
+            const stat = fs.lstatSync(skillDir);
+            isSymlink = stat.isSymbolicLink();
+            if (isSymlink) {
+              actualPath = fs.readlinkSync(skillDir);
+            }
+          } catch {
+            continue;
+          }
+
+          const stats = this.getDirStats(actualPath);
+          const description = this.getSkillDescription(actualPath);
 
           importedSkills.push({
             name: entry.name,
@@ -80,6 +100,7 @@ class SyncService {
             fileCount: stats.fileCount,
             size: stats.size,
             description,
+            isSymlink,
           });
         }
       } catch (error) {
@@ -88,6 +109,62 @@ class SyncService {
     }
 
     return importedSkills;
+  }
+
+  previewSkillFiles(toolId: string, skillName: string): SkillFilePreview[] {
+    const toolSkillPath = toolDetector.getToolSkillPath(toolId);
+    if (!toolSkillPath) {
+      return [];
+    }
+
+    const skillPath = path.join(toolSkillPath, skillName);
+    let actualPath = skillPath;
+    
+    try {
+      const stat = fs.lstatSync(skillPath);
+      if (stat.isSymbolicLink()) {
+        actualPath = fs.readlinkSync(skillPath);
+      }
+    } catch {
+      return [];
+    }
+
+    if (!fs.existsSync(actualPath)) {
+      return [];
+    }
+
+    const files: SkillFilePreview[] = [];
+    const scanDir = (dir: string, basePath: string = '') => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relativePath = basePath ? path.join(basePath, entry.name) : entry.name;
+
+        if (entry.isDirectory()) {
+          scanDir(fullPath, relativePath);
+        } else if (entry.isFile()) {
+          try {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            const stat = fs.statSync(fullPath);
+            files.push({
+              path: relativePath,
+              content,
+              size: stat.size,
+            });
+          } catch {
+            // skip files that can't be read
+          }
+        }
+      }
+    };
+
+    try {
+      scanDir(actualPath);
+    } catch {
+      return [];
+    }
+
+    return files;
   }
 
   private getDirStats(dir: string): { fileCount: number; size: number } {
@@ -129,7 +206,7 @@ class SyncService {
     }
   }
 
-  importFromTool(toolId: string, skillName: string, overwrite: boolean = false): { success: boolean; error?: string; imported?: boolean } {
+  importFromTool(toolId: string, skillName: string, overwrite: boolean = false, useSymlink: boolean = false): { success: boolean; error?: string; imported?: boolean } {
     const toolSkillPath = toolDetector.getToolSkillPath(toolId);
     if (!toolSkillPath) {
       return { success: false, error: `Tool "${toolId}" not supported` };
@@ -148,12 +225,92 @@ class SyncService {
 
     try {
       if (fs.existsSync(targetPath)) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
+        const stat = fs.lstatSync(targetPath);
+        if (stat.isSymbolicLink()) {
+          fs.unlinkSync(targetPath);
+        } else {
+          fs.rmSync(targetPath, { recursive: true, force: true });
+        }
       }
 
-      this.copyDir(sourcePath, targetPath);
+      let actualSourcePath = sourcePath;
+      try {
+        const sourceStat = fs.lstatSync(sourcePath);
+        if (sourceStat.isSymbolicLink()) {
+          actualSourcePath = fs.readlinkSync(sourcePath);
+        }
+      } catch {
+        // use sourcePath as is
+      }
+
+      this.copyDir(actualSourcePath, targetPath);
+
+      if (useSymlink && this.canUseSymlink()) {
+        const backupPath = sourcePath + '.backup';
+        if (fs.existsSync(sourcePath)) {
+          const stat = fs.lstatSync(sourcePath);
+          if (!stat.isSymbolicLink()) {
+            fs.renameSync(sourcePath, backupPath);
+            try {
+              fs.symlinkSync(targetPath, sourcePath, 'junction');
+              fs.rmSync(backupPath, { recursive: true, force: true });
+            } catch (symlinkError) {
+              fs.renameSync(backupPath, sourcePath);
+              throw symlinkError;
+            }
+          } else {
+            fs.unlinkSync(sourcePath);
+            fs.symlinkSync(targetPath, sourcePath, 'junction');
+          }
+        } else {
+          fs.symlinkSync(targetPath, sourcePath, 'junction');
+        }
+      }
 
       return { success: true, imported: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  }
+
+  restoreFromSymlink(toolId: string, skillName: string): { success: boolean; error?: string } {
+    const toolSkillPath = toolDetector.getToolSkillPath(toolId);
+    if (!toolSkillPath) {
+      return { success: false, error: `Tool "${toolId}" not supported` };
+    }
+
+    const skillPath = path.join(toolSkillPath, skillName);
+    
+    try {
+      const stat = fs.lstatSync(skillPath);
+      if (!stat.isSymbolicLink()) {
+        return { success: false, error: `"${skillName}" is not a symlink` };
+      }
+
+      let targetPath = fs.readlinkSync(skillPath);
+      if (!fs.existsSync(targetPath)) {
+        targetPath = path.resolve(path.dirname(skillPath), targetPath);
+      }
+      if (!fs.existsSync(targetPath)) {
+        return { success: false, error: `Symlink target does not exist: ${targetPath}` };
+      }
+
+      const targetStats = fs.statSync(targetPath);
+      if (!targetStats.isDirectory()) {
+        return { success: false, error: `Symlink target is not a directory` };
+      }
+
+      fs.unlinkSync(skillPath);
+      
+      this.copyDir(targetPath, skillPath);
+
+      const verifyStat = fs.lstatSync(skillPath);
+      if (verifyStat.isSymbolicLink()) {
+        return { success: false, error: 'Restore failed: path is still a symlink' };
+      }
+
+      return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return { success: false, error: message };

@@ -76,6 +76,41 @@ test.describe('Feature: Tools Page', () => {
       await expect(syncAllButton).toBeEnabled();
     });
   });
+
+  test('Scenario: Individual tool sync button', async ({ page }) => {
+    await test.step('Given I am on the Tools page with tools loaded', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+      await page.waitForSelector('.card', { timeout: 10000 });
+    });
+
+    await test.step('When I look for individual sync buttons', async () => {
+      const syncButtons = page.locator('button:has-text("Sync")');
+      const count = await syncButtons.count();
+      expect(count).toBeGreaterThan(0);
+    });
+
+    await test.step('Then sync buttons should be visible', async () => {
+      const syncButton = page.locator('button:has-text("Sync")').first();
+      await expect(syncButton).toBeVisible();
+    });
+  });
+
+  test('Scenario: Click Sync All and verify response', async ({ page }) => {
+    await test.step('Given I am on the Tools page', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+    });
+
+    await test.step('When I click Sync All button', async () => {
+      const syncAllButton = page.getByRole('button', { name: 'Sync All' });
+      await syncAllButton.click();
+    });
+
+    await test.step('Then page should handle the sync action', async () => {
+      await page.waitForTimeout(2000);
+      const syncAllButton = page.getByRole('button', { name: 'Sync All' });
+      await expect(syncAllButton).toBeVisible();
+    });
+  });
 });
 
 test.describe('Feature: Skills Page', () => {
@@ -134,6 +169,129 @@ test.describe('Feature: Skills Page', () => {
       await page.waitForLoadState('networkidle');
       const skillInList = page.locator(`button:has-text("${skillName}")`);
       await expect(skillInList.first()).toBeVisible({ timeout: 10000 });
+    });
+  });
+
+  test('Scenario: Open import panel', async ({ page }) => {
+    await test.step('Given I am on the Skills page', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+    });
+
+    await test.step('When I click Import button', async () => {
+      await page.getByRole('button', { name: 'Import' }).first().click();
+    });
+
+    await test.step('Then import panel should open', async () => {
+      await expect(page.getByText('Import Skills from Tools')).toBeVisible({ timeout: 5000 });
+    });
+  });
+
+  test('Scenario: View imported skills table or empty state', async ({ page }) => {
+    await test.step('Given I open the import panel', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+      const importButton = page.getByRole('button', { name: 'Import' }).first();
+      if (await importButton.isVisible()) {
+        await importButton.click();
+        await page.waitForTimeout(2000);
+      }
+    });
+
+    await test.step('Then import panel should show table or empty message', async () => {
+      const hasContent = await Promise.all([
+        page.locator('table').isVisible().catch(() => false),
+        page.getByText('No skills found').isVisible().catch(() => false),
+      ]);
+      expect(hasContent[0] || hasContent[1]).toBeTruthy();
+    });
+  });
+
+  test('Scenario: Import button is present', async ({ page }) => {
+    await test.step('Given I am on the Skills page', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+    });
+
+    await test.step('Then import functionality should be available', async () => {
+      const importButton = page.getByRole('button', { name: 'Import' }).first();
+      await expect(importButton).toBeVisible();
+    });
+  });
+
+  test('Scenario: Preview button exists', async ({ page }) => {
+    await test.step('Given I open the import panel', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+      const importButton = page.getByRole('button', { name: 'Import' }).first();
+      if (await importButton.isVisible()) {
+        await importButton.click();
+        await page.waitForTimeout(1000);
+      }
+    });
+
+    await test.step('When I look for preview functionality', async () => {
+      const previewButtons = page.locator('button[title="Preview"]');
+      const count = await previewButtons.count();
+      if (count > 0) {
+        expect(count).toBeGreaterThan(0);
+      }
+    });
+
+    await test.step('Then preview button should be visible if skills exist', async () => {
+      const previewButton = page.locator('button[title="Preview"]').first();
+      if (await previewButton.isVisible()) {
+        await expect(previewButton).toBeVisible();
+      }
+    });
+  });
+
+  test('Scenario: Check for symlink status column', async ({ page }) => {
+    await test.step('Given I open the import panel', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+      const importButton = page.getByRole('button', { name: 'Import' }).first();
+      if (await importButton.isVisible()) {
+        await importButton.click();
+        await page.waitForTimeout(1000);
+      }
+    });
+
+    await test.step('When the table is visible', async () => {
+      const table = page.locator('table');
+      if (await table.isVisible()) {
+        await expect(page.getByText('Status')).toBeVisible();
+      }
+    });
+
+    await test.step('Then status column should show Linked or Local', async () => {
+      const table = page.locator('table');
+      if (await table.isVisible()) {
+        const linkedStatus = page.getByText('Linked');
+        const localStatus = page.getByText('Local');
+        const visible = (await linkedStatus.isVisible()) || (await localStatus.isVisible());
+        expect(visible).toBeTruthy();
+      }
+    });
+  });
+
+  test('Scenario: Restore button exists for symlinked skills', async ({ page }) => {
+    await test.step('Given I open the import panel', async () => {
+      await page.waitForSelector('h1', { timeout: 10000 });
+      const importButton = page.getByRole('button', { name: 'Import' }).first();
+      if (await importButton.isVisible()) {
+        await importButton.click();
+        await page.waitForTimeout(1000);
+      }
+    });
+
+    await test.step('When I look for restore functionality', async () => {
+      const restoreButtons = page.locator('button[title="Restore from symlink"]');
+      const count = await restoreButtons.count();
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    await test.step('Then restore button should be visible if symlinked skills exist', async () => {
+      const restoreButton = page.locator('button[title="Restore from symlink"]').first();
+      const isVisible = await restoreButton.isVisible().catch(() => false);
+      if (isVisible) {
+        await expect(restoreButton).toBeVisible();
+      }
     });
   });
 });

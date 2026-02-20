@@ -12,7 +12,7 @@ const categoryIcons = {
   jetbrains: Puzzle,
 };
 
-export default function Tools() {
+export default function ToolsModal() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [syncingTools, setSyncingTools] = useState<Set<string>>(new Set());
@@ -24,7 +24,7 @@ export default function Tools() {
   const [showCreate, setShowCreate] = useState(false);
   const [newSkillName, setNewSkillName] = useState('');
   const [selectedCentralSkill, setSelectedCentralSkill] = useState<Skill | null>(null);
-  const [showImport, setShowImport] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [importingSkill, setImportingSkill] = useState<string | null>(null);
   const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
   const [previewSkill, setPreviewSkill] = useState<ImportedSkill | null>(null);
@@ -50,7 +50,7 @@ export default function Tools() {
   const { data: importedSkillsResponse, isLoading: isLoadingImported } = useQuery({
     queryKey: ['imported-skills'],
     queryFn: api.import.listToolsSkills,
-    enabled: showImport,
+    enabled: showImportModal,
   });
 
   const syncAllMutation = useMutation({
@@ -162,6 +162,7 @@ export default function Tools() {
       queryClient.invalidateQueries({ queryKey: ['imported-skills'] });
       queryClient.invalidateQueries({ queryKey: ['tools-skills'] });
       setSelectedImports(new Set());
+      setShowImportModal(false);
       const success = results.filter(r => r.success).length;
       const failed = results.length - success;
       if (failed === 0) {
@@ -350,7 +351,7 @@ export default function Tools() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowImport(true)}
+            onClick={() => setShowImportModal(true)}
             className="btn btn-secondary btn-md flex items-center gap-2"
           >
             <Download size={18} />
@@ -406,245 +407,8 @@ export default function Tools() {
         </div>
       )}
 
-      {showImport && (
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Import Skills from Tools</h3>
-            <div className="flex items-center gap-2">
-              {selectedImports.size > 0 && (
-                <button
-                  onClick={handleBatchImport}
-                  disabled={batchImportMutation.isPending}
-                  className="btn btn-primary btn-sm flex items-center gap-1"
-                >
-                  {batchImportMutation.isPending ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload size={14} />
-                      Import Selected ({selectedImports.size})
-                    </>
-                  )}
-                </button>
-              )}
-              <button onClick={() => setShowImport(false)} className="btn btn-ghost btn-sm">
-                ✕
-              </button>
-            </div>
-          </div>
-          
-          {isLoadingImported ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[hsl(var(--primary))] mx-auto" />
-            </div>
-          ) : importedSkills.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              No skills found in your installed tools.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 px-2 text-left w-10">
-                      <button
-                        onClick={toggleImportSelectAll}
-                        className="p-1 hover:bg-[hsl(var(--muted))] rounded"
-                        title={selectedImports.size === importedSkills.length ? 'Deselect all' : 'Select all'}
-                      >
-                        {selectedImports.size === importedSkills.length ? (
-                          <CheckSquare size={16} className="text-[hsl(var(--primary))]" />
-                        ) : (
-                          <Square size={16} />
-                        )}
-                      </button>
-                    </th>
-                    <th className="py-2 px-2 text-left">Name</th>
-                    <th className="py-2 px-2 text-left">Tool</th>
-                    <th className="py-2 px-2 text-center">Status</th>
-                    <th className="py-2 px-2 text-right">Files</th>
-                    <th className="py-2 px-2 text-right">Size</th>
-                    <th className="py-2 px-2 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {importedSkills.map((skill) => {
-                    const key = `${skill.toolId}-${skill.name}`;
-                    const isSelected = selectedImports.has(key);
-                    const isImporting = importingSkill === skill.name;
-                    
-                    return (
-                      <tr
-                        key={key}
-                        className={`border-b hover:bg-[hsl(var(--muted))] cursor-pointer ${
-                          isSelected ? 'bg-[hsl(var(--primary))]/10' : ''
-                        }`}
-                        onClick={() => toggleImportSelect(key)}
-                      >
-                        <td className="py-2 px-2">
-                          {isSelected ? (
-                            <CheckSquare size={16} className="text-[hsl(var(--primary))]" />
-                          ) : (
-                            <Square size={16} />
-                          )}
-                        </td>
-                        <td className="py-2 px-2">
-                          <div>
-                            <span className="font-medium">{skill.name}</span>
-                            {skill.description && (
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate max-w-[200px]">
-                                {skill.description}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2 px-2">
-                          <span className="badge badge-secondary text-xs">{skill.toolName}</span>
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          {skill.isSymlink ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                              <Link size={12} />
-                              Linked
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[hsl(var(--muted-foreground))]">Local</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-2 text-right text-[hsl(var(--muted-foreground))]">
-                          {skill.fileCount}
-                        </td>
-                        <td className="py-2 px-2 text-right text-[hsl(var(--muted-foreground))]">
-                          {(skill.size / 1024).toFixed(1)} KB
-                        </td>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                            <button
-                              onClick={() => handlePreview(skill)}
-                              className="btn btn-ghost btn-sm p-1"
-                              title="Preview"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            {skill.isSymlink ? (
-                              <button
-                                onClick={() => handleRestore(skill)}
-                                disabled={restoreMutation.isPending}
-                                className="btn btn-ghost btn-sm p-1"
-                                title="Restore from symlink"
-                              >
-                                <Link2Off size={14} />
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleImport(skill, true)}
-                                  disabled={isImporting}
-                                  className="btn btn-ghost btn-sm p-1"
-                                  title="Import (symlink)"
-                                >
-                                  {isImporting ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[hsl(var(--primary))]" />
-                                  ) : (
-                                    <Link size={14} />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleImport(skill, false)}
-                                  disabled={isImporting}
-                                  className="btn btn-ghost btn-sm p-1"
-                                  title="Import (copy)"
-                                >
-                                  <Upload size={14} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {showPreviewModal && previewSkill && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-[hsl(var(--card))] rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">{previewSkill.name}</h3>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  {previewSkill.toolName} - {previewSkill.fileCount} files
-                </p>
-              </div>
-              <button onClick={() => setShowPreviewModal(false)} className="btn btn-ghost btn-sm">
-                ✕
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              {previewLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))] mx-auto" />
-                </div>
-              ) : previewFiles.length === 0 ? (
-                <p className="text-center text-[hsl(var(--muted-foreground))]">No files to preview</p>
-              ) : (
-                <div className="space-y-4">
-                  {previewFiles.map((file) => (
-                    <div key={file.path} className="border rounded">
-                      <div className="px-3 py-2 bg-[hsl(var(--muted))] text-sm font-medium flex items-center justify-between">
-                        <span>{file.path}</span>
-                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </span>
-                      </div>
-                      <pre className="p-3 text-xs overflow-x-auto max-h-[200px] bg-[hsl(var(--background))]">
-                        {file.content.slice(0, 5000)}
-                        {file.content.length > 5000 && '\n... (truncated)'}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowPreviewModal(false)} className="btn btn-secondary btn-sm">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowPreviewModal(false);
-                  handleImport(previewSkill, true);
-                }}
-                className="btn btn-primary btn-sm flex items-center gap-1"
-              >
-                <Link size={14} />
-                Import (Symlink)
-              </button>
-              <button
-                onClick={() => {
-                  setShowPreviewModal(false);
-                  handleImport(previewSkill, false);
-                }}
-                className="btn btn-primary btn-sm flex items-center gap-1"
-              >
-                <Upload size={14} />
-                Import (Copy)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div>
           <div className="card">
             <div className="p-3 border-b flex items-center justify-between">
               <h3 className="font-semibold">Central Repository ({centralSkills.length})</h3>
@@ -687,9 +451,7 @@ export default function Tools() {
               <div className="p-3 border-b flex items-center justify-between">
                 <h3 className="font-semibold text-sm">{selectedCentralSkill.name}</h3>
                 <button
-                  onClick={() => {
-                    deleteMutation.mutate(selectedCentralSkill.id);
-                  }}
+                  onClick={() => deleteMutation.mutate(selectedCentralSkill.id)}
                   disabled={deleteMutation.isPending}
                   className="btn btn-ghost btn-sm text-red-600 hover:text-red-700 p-1"
                 >
@@ -717,17 +479,17 @@ export default function Tools() {
           )}
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-4">
           {Object.entries(groupedTools).map(([category, categoryTools]) => {
             const Icon = categoryIcons[category as keyof typeof categoryIcons] || Puzzle;
             return (
-              <div key={category} className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-                  <h2 className="text-xl font-semibold">{categoryLabels[category] || category}</h2>
+              <div key={category}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Icon className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                  <h2 className="text-lg font-semibold">{categoryLabels[category] || category}</h2>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
                   {categoryTools.map((tool) => {
                     const isSyncing = syncingTools.has(tool.id);
                     const toolResults = syncResults.get(tool.id);
@@ -738,48 +500,63 @@ export default function Tools() {
                     const linkedSkills = toolSkills.filter(s => s.isSymlink);
 
                     return (
-                      <div key={tool.id} className="card p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold">{tool.displayName}</h3>
-                            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 truncate">
-                              {tool.skillPath}
-                            </p>
+                      <div key={tool.id} className="card p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex-shrink-0">
+                              {tool.detected ? (
+                                <span className="badge badge-success flex items-center gap-1 text-xs">
+                                  <Check size={10} /> Detected
+                                </span>
+                              ) : (
+                                <span className="badge badge-secondary flex items-center gap-1 text-xs">
+                                  <X size={10} /> Not Found
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-sm">{tool.displayName}</h3>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+                                {tool.skillPath}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex gap-1 ml-2">
-                            {tool.detected ? (
-                              <span className="badge badge-success flex items-center gap-1">
-                                <Check size={12} /> Detected
-                              </span>
-                            ) : (
-                              <span className="badge badge-secondary flex items-center gap-1">
-                                <X size={12} /> Not Found
-                              </span>
-                            )}
-                          </div>
+                          {tool.detected && (
+                            <button
+                              onClick={() => openSyncModal(tool.id)}
+                              disabled={isSyncing}
+                              className="btn btn-primary btn-sm flex items-center gap-1 ml-2"
+                            >
+                              {isSyncing ? (
+                                <RefreshCw size={12} className="animate-spin" />
+                              ) : (
+                                <Download size={12} />
+                              )}
+                            </button>
+                          )}
                         </div>
 
                         {tool.detected && toolSkills.length > 0 && (
-                          <div className="mt-3">
+                          <div className="mt-2">
                             <button
                               onClick={() => toggleExpand(tool.id)}
-                              className="flex items-center gap-2 text-sm hover:text-[hsl(var(--primary))] transition-colors"
+                              className="flex items-center gap-2 text-xs hover:text-[hsl(var(--primary))] transition-colors"
                             >
-                              <Folder size={14} />
-                              <span className="font-medium">{toolSkills.length} skills</span>
+                              <Folder size={12} />
+                              <span>{toolSkills.length} skills</span>
                               {linkedSkills.length > 0 && (
-                                <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                <span className="text-green-600 flex items-center gap-1">
                                   <Link size={10} />
                                   {linkedSkills.length} linked
                                 </span>
                               )}
-                              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                              <span className="text-[hsl(var(--muted-foreground))]">
                                 {isExpanded ? '▲' : '▼'}
                               </span>
                             </button>
                             
                             {isExpanded && (
-                              <div className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
+                              <div className="mt-2 space-y-1 max-h-[150px] overflow-y-auto">
                                 {toolSkills.map((skill) => (
                                   <div
                                     key={skill.name}
@@ -803,36 +580,8 @@ export default function Tools() {
                           </div>
                         )}
 
-                        <div className="mt-4 flex items-center justify-between">
-                          <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                            {toolSkills.length > 0 
-                              ? `${toolSkills.length} skill${toolSkills.length > 1 ? 's' : ''} in directory`
-                              : tool.installed ? 'Skills directory exists' : 'No skills directory'
-                            }
-                          </span>
-                          {tool.detected && (
-                            <button
-                              onClick={() => openSyncModal(tool.id)}
-                              disabled={isSyncing}
-                              className="btn btn-primary btn-sm flex items-center gap-1"
-                            >
-                              {isSyncing ? (
-                                <>
-                                  <RefreshCw size={14} className="animate-spin" />
-                                  Syncing...
-                                </>
-                              ) : (
-                                <>
-                                  <Download size={14} />
-                                  Sync
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-
                         {toolResults && toolResults.length > 0 && (
-                          <div className="mt-3 pt-3 border-t text-xs">
+                          <div className="mt-2 pt-2 border-t text-xs">
                             {successCount > 0 && (
                               <span className="text-green-600 dark:text-green-400 mr-2">
                                 ✓ {successCount} synced
@@ -855,19 +604,191 @@ export default function Tools() {
         </div>
       </div>
 
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImportModal(false)}>
+          <div className="bg-[hsl(var(--card))] rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold">Import Skills from Tools</h3>
+              <div className="flex items-center gap-2">
+                {selectedImports.size > 0 && (
+                  <button
+                    onClick={handleBatchImport}
+                    disabled={batchImportMutation.isPending}
+                    className="btn btn-primary btn-sm flex items-center gap-1"
+                  >
+                    {batchImportMutation.isPending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        Import Selected ({selectedImports.size})
+                      </>
+                    )}
+                  </button>
+                )}
+                <button onClick={() => setShowImportModal(false)} className="btn btn-ghost btn-sm">✕</button>
+              </div>
+            </div>
+            
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {isLoadingImported ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))] mx-auto" />
+                </div>
+              ) : importedSkills.length === 0 ? (
+                <p className="text-center text-[hsl(var(--muted-foreground))]">No skills found in your installed tools.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="py-2 px-2 text-left w-10">
+                          <button onClick={toggleImportSelectAll} className="p-1 hover:bg-[hsl(var(--muted))] rounded">
+                            {selectedImports.size === importedSkills.length ? (
+                              <CheckSquare size={16} className="text-[hsl(var(--primary))]" />
+                            ) : (
+                              <Square size={16} />
+                            )}
+                          </button>
+                        </th>
+                        <th className="py-2 px-2 text-left">Name</th>
+                        <th className="py-2 px-2 text-left">Tool</th>
+                        <th className="py-2 px-2 text-center">Status</th>
+                        <th className="py-2 px-2 text-right">Files</th>
+                        <th className="py-2 px-2 text-right">Size</th>
+                        <th className="py-2 px-2 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importedSkills.map((skill) => {
+                        const key = `${skill.toolId}-${skill.name}`;
+                        const isSelected = selectedImports.has(key);
+                        const isImporting = importingSkill === skill.name;
+                        
+                        return (
+                          <tr
+                            key={key}
+                            className={`border-b hover:bg-[hsl(var(--muted))] cursor-pointer ${isSelected ? 'bg-[hsl(var(--primary))]/10' : ''}`}
+                            onClick={() => toggleImportSelect(key)}
+                          >
+                            <td className="py-2 px-2">
+                              {isSelected ? <CheckSquare size={16} className="text-[hsl(var(--primary))]" /> : <Square size={16} />}
+                            </td>
+                            <td className="py-2 px-2 font-medium">{skill.name}</td>
+                            <td className="py-2 px-2">
+                              <span className="badge badge-secondary text-xs">{skill.toolName}</span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              {skill.isSymlink ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                                  <Link size={12} /> Linked
+                                </span>
+                              ) : (
+                                <span className="text-xs text-[hsl(var(--muted-foreground))]">Local</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2 text-right text-[hsl(var(--muted-foreground))]">{skill.fileCount}</td>
+                            <td className="py-2 px-2 text-right text-[hsl(var(--muted-foreground))]">{(skill.size / 1024).toFixed(1)} KB</td>
+                            <td className="py-2 px-2">
+                              <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => handlePreview(skill)} className="btn btn-ghost btn-sm p-1" title="Preview">
+                                  <Eye size={14} />
+                                </button>
+                                {skill.isSymlink ? (
+                                  <button onClick={() => handleRestore(skill)} className="btn btn-ghost btn-sm p-1" title="Restore">
+                                    <Link2Off size={14} />
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button onClick={() => handleImport(skill, true)} disabled={isImporting} className="btn btn-ghost btn-sm p-1" title="Import (symlink)">
+                                      <Link size={14} />
+                                    </button>
+                                    <button onClick={() => handleImport(skill, false)} disabled={isImporting} className="btn btn-ghost btn-sm p-1" title="Import (copy)">
+                                      <Upload size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPreviewModal && previewSkill && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPreviewModal(false)}>
+          <div className="bg-[hsl(var(--card))] rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">{previewSkill.name}</h3>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  {previewSkill.toolName} - {previewSkill.fileCount} files
+                </p>
+              </div>
+              <button onClick={() => setShowPreviewModal(false)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {previewLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--primary))] mx-auto" />
+                </div>
+              ) : previewFiles.length === 0 ? (
+                <p className="text-center text-[hsl(var(--muted-foreground))]">No files to preview</p>
+              ) : (
+                <div className="space-y-4">
+                  {previewFiles.map((file) => (
+                    <div key={file.path} className="border rounded">
+                      <div className="px-3 py-2 bg-[hsl(var(--muted))] text-sm font-medium flex items-center justify-between">
+                        <span>{file.path}</span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{(file.size / 1024).toFixed(1)} KB</span>
+                      </div>
+                      <pre className="p-3 text-xs overflow-x-auto max-h-[200px] bg-[hsl(var(--background))]">
+                        {file.content.slice(0, 5000)}
+                        {file.content.length > 5000 && '\n... (truncated)'}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setShowPreviewModal(false)} className="btn btn-secondary btn-sm">Cancel</button>
+              <button
+                onClick={() => { setShowPreviewModal(false); handleImport(previewSkill, true); }}
+                className="btn btn-primary btn-sm flex items-center gap-1"
+              >
+                <Link size={14} /> Import (Symlink)
+              </button>
+              <button
+                onClick={() => { setShowPreviewModal(false); handleImport(previewSkill, false); }}
+                className="btn btn-primary btn-sm flex items-center gap-1"
+              >
+                <Upload size={14} /> Import (Copy)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSyncModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSyncModal(null)}>
           <div className="bg-[hsl(var(--card))] rounded-lg max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Sync Skills to Tool</h3>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Select skills from central repo to sync
-                </p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Select skills from central repo to sync</p>
               </div>
-              <button onClick={() => setShowSyncModal(null)} className="btn btn-ghost btn-sm">
-                ✕
-              </button>
+              <button onClick={() => setShowSyncModal(null)} className="btn btn-ghost btn-sm">✕</button>
             </div>
             
             <div className="p-4">
@@ -878,10 +799,7 @@ export default function Tools() {
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-3">
-                    <button
-                      onClick={toggleSelectAllSkills}
-                      className="flex items-center gap-2 text-sm hover:text-[hsl(var(--primary))]"
-                    >
+                    <button onClick={toggleSelectAllSkills} className="flex items-center gap-2 text-sm hover:text-[hsl(var(--primary))]">
                       {selectedSkills.size === centralSkills.length ? (
                         <CheckSquare size={16} className="text-[hsl(var(--primary))]" />
                       ) : (
@@ -889,9 +807,7 @@ export default function Tools() {
                       )}
                       <span>Select All</span>
                     </button>
-                    <span className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {selectedSkills.size} selected
-                    </span>
+                    <span className="text-sm text-[hsl(var(--muted-foreground))]">{selectedSkills.size} selected</span>
                   </div>
                   
                   <div className="space-y-1 max-h-[300px] overflow-y-auto">
@@ -913,14 +829,10 @@ export default function Tools() {
                           <div className="flex-1 min-w-0">
                             <span className="font-medium">{skill.name}</span>
                             {skill.description && (
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
-                                {skill.description}
-                              </p>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">{skill.description}</p>
                             )}
                           </div>
-                          <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                            {skill.files?.length || 0} files
-                          </span>
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">{skill.files?.length || 0} files</span>
                         </div>
                       );
                     })}
@@ -930,9 +842,7 @@ export default function Tools() {
             </div>
             
             <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowSyncModal(null)} className="btn btn-secondary btn-sm">
-                Cancel
-              </button>
+              <button onClick={() => setShowSyncModal(null)} className="btn btn-secondary btn-sm">Cancel</button>
               <button
                 onClick={() => handleSyncSelected(showSyncModal)}
                 disabled={selectedSkills.size === 0 || syncSelectedMutation.isPending}
@@ -940,13 +850,11 @@ export default function Tools() {
               >
                 {syncSelectedMutation.isPending ? (
                   <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    Syncing...
+                    <RefreshCw size={14} className="animate-spin" /> Syncing...
                   </>
                 ) : (
                   <>
-                    <Download size={14} />
-                    Sync {selectedSkills.size > 0 && `(${selectedSkills.size})`}
+                    <Download size={14} /> Sync {selectedSkills.size > 0 && `(${selectedSkills.size})`}
                   </>
                 )}
               </button>
