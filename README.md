@@ -29,7 +29,7 @@ A modern web application for managing and synchronizing AI coding assistant skil
 |:----------:|:--------:|
 | ![Tools](./screenshots/tools.png) | ![Settings](./screenshots/settings.png) |
 
-## �🛠️ Supported Tools
+## 🛠️ Supported Tools
 
 | Tool | Type | Status |
 |------|------|:------:|
