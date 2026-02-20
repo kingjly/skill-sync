@@ -19,7 +19,7 @@ A modern web application for managing and synchronizing AI coding assistant skil
 - 📦 **Batch Operations** - Import, sync, and delete skills in bulk
 - 🎨 **Modern UI** - Clean, responsive interface with dark mode support
 
-## � Screenshots
+## 📸 Screenshots
 
 | Dashboard | Skills Repository |
 |:---------:|:-----------------:|
