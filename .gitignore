@@ -45,3 +45,6 @@ tests/tmp/
 # Skill Sync data (user-specific)
 # Note: These are created in user's home directory, not in project
 # ~/.skill-sync/
+
+# Development docs
+docs/

@@ -72,7 +72,7 @@ const toolIcons: Record<string, React.FC<{ className?: string }>> = {
 
 function getToolIcon(tool: Tool): React.FC<{ className?: string }> | null {
   if (tool.icon && toolIcons[tool.icon]) {
-    return toolIcons[tool.icon];
+    return toolIcons[tool.icon] ?? null;
   }
   return null;
 }
