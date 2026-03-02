@@ -17,12 +17,13 @@ export class ToolDetector {
   }
 
   private detectTool(def: Omit<Tool, 'detected' | 'installed'>): Tool {
-    const skillPath = path.join(this.homeDir, def.skillPath);
+    const resolvedSkillPath = this.getToolSkillPath(def.id);
     const detected = this.isToolDetected(def);
-    const installed = fs.existsSync(skillPath);
+    const installed = resolvedSkillPath ? fs.existsSync(resolvedSkillPath) : false;
 
     return {
       ...def,
+      skillPath: def.id === 'copilot' && resolvedSkillPath ? resolvedSkillPath : def.skillPath,
       detected,
       installed,
     };
@@ -52,13 +53,18 @@ export class ToolDetector {
     };
 
     const cmds = commands[name] || [name];
+    const isWindows = process.platform === 'win32';
+
     for (const cmd of cmds) {
       try {
-        execSync(`where ${cmd} 2>nul`, { encoding: 'utf-8', timeout: 5000 });
+        execSync(`where ${cmd}`, { stdio: 'ignore', timeout: 5000 });
         return true;
       } catch {
+        if (isWindows) {
+          continue;
+        }
         try {
-          execSync(`which ${cmd} 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
+          execSync(`which ${cmd}`, { stdio: 'ignore', timeout: 5000 });
           return true;
         } catch {
           continue;
@@ -101,18 +107,8 @@ export class ToolDetector {
   }
 
   private isVscodeExtensionDetected(name: string): boolean {
-    const vscodeExtensionsPath = path.join(
-      this.homeDir,
-      process.platform === 'win32' ? '.vscode' : '.vscode',
-      'extensions'
-    );
-
-    if (!fs.existsSync(vscodeExtensionsPath)) {
-      return false;
-    }
-
     const extensionPatterns: Record<string, string[]> = {
-      copilot: ['github.copilot'],
+      copilot: ['github.copilot', 'github.copilot-chat'],
       continue: ['continue.continue'],
       cline: ['saoudrizwan.claude-dev'],
       'roo-code': ['rooveterinaryinc.roo-cline'],
@@ -120,14 +116,23 @@ export class ToolDetector {
     };
 
     const patterns = extensionPatterns[name] || [];
-    try {
-      const extensions = fs.readdirSync(vscodeExtensionsPath);
-      return patterns.some((pattern) =>
-        extensions.some((ext) => ext.toLowerCase().startsWith(pattern.toLowerCase()))
-      );
-    } catch {
-      return false;
+    for (const extensionsPath of this.getVscodeExtensionRoots()) {
+      if (!fs.existsSync(extensionsPath)) {
+        continue;
+      }
+      try {
+        const extensions = fs.readdirSync(extensionsPath);
+        const found = patterns.some((pattern) =>
+          extensions.some((ext) => ext.toLowerCase().startsWith(pattern.toLowerCase()))
+        );
+        if (found) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
     }
+    return false;
   }
 
   private isJetbrainsPluginDetected(name: string): boolean {
@@ -158,9 +163,78 @@ export class ToolDetector {
     return false;
   }
 
+  private getVscodeExtensionRoots(): string[] {
+    return [
+      path.join(this.homeDir, '.vscode', 'extensions'),
+      path.join(this.homeDir, '.vscode-insiders', 'extensions'),
+    ];
+  }
+
+  private resolveCopilotSkillPath(): string | null {
+    const candidates: Array<{ path: string; mtimeMs: number }> = [];
+
+    for (const extensionsPath of this.getVscodeExtensionRoots()) {
+      if (!fs.existsSync(extensionsPath)) {
+        continue;
+      }
+
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(extensionsPath, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+
+        const extensionName = entry.name.toLowerCase();
+        const isCopilotChat =
+          extensionName === 'github.copilot-chat' ||
+          extensionName.startsWith('github.copilot-chat-');
+        if (!isCopilotChat) {
+          continue;
+        }
+
+        const extensionDir = path.join(extensionsPath, entry.name);
+        const skillsPath = path.join(extensionDir, 'assets', 'prompts', 'skills');
+        if (!fs.existsSync(skillsPath)) {
+          continue;
+        }
+
+        try {
+          if (!fs.statSync(skillsPath).isDirectory()) {
+            continue;
+          }
+          const extensionStat = fs.statSync(extensionDir);
+          candidates.push({
+            path: skillsPath,
+            mtimeMs: extensionStat.mtimeMs,
+          });
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return candidates[0]?.path ?? null;
+  }
+
   getToolSkillPath(toolId: string): string | null {
     const def = TOOL_DEFINITIONS.find((d) => d.id === toolId);
     if (!def) return null;
+
+    if (toolId === 'copilot') {
+      return this.resolveCopilotSkillPath();
+    }
+
     return path.join(this.homeDir, def.skillPath);
   }
 
